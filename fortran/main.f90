@@ -16,9 +16,9 @@
 !
 ! Same Jacobi stencil as julia/poisson.jl. gfortran does not insert
 ! bounds checks unless -fcheck=bounds is given, so -O3 is already the
-! @inbounds equivalent. Buffers are pointer-swapped instead of copied;
-! both stay zero on the Dirichlet boundary because only interior points
-! are written. The update-width reduction and the progress line are
+! @inbounds equivalent. The two allocatable buffers are selected by a
+! boolean toggle instead of pointer-swapped; both stay zero on the
+! Dirichlet boundary because only interior points are written. The update-width reduction and the progress line are
 ! confined to every 1000th sweep (as in julia/ and cxx/), so the hot
 ! sweeps stay free of the reduction.
 ! ------------------------------------------------------------
@@ -34,8 +34,8 @@ program poisson
   real(dp), parameter :: pi = 4.0_dp * atan(1.0_dp)
 
   real(dp) :: h, duration, update_error, max_error, l2_error
-  real(dp), allocatable, target :: x(:), y(:), ua(:,:), ub(:,:), rhs(:,:), ue(:,:), err(:,:)
-  real(dp), pointer, contiguous :: u(:,:), u_new(:,:)
+  real(dp), allocatable :: x(:), y(:), ua(:,:), ub(:,:), rhs(:,:), ue(:,:), err(:,:)
+  logical :: final_is_first
   integer :: i, j, iterations
   integer(int64) :: t0, t1, clock_rate
 
@@ -52,8 +52,6 @@ program poisson
 
   ua = 0.0_dp
   ub = 0.0_dp
-  u => ua
-  u_new => ub
   do j = 1, n
     do i = 1, n
       rhs(i, j) = f_rhs(x(i), y(j))
@@ -61,7 +59,7 @@ program poisson
   end do
 
   call system_clock(t0, clock_rate)
-  call jacobi(u, u_new, rhs, h, tol, maxiter, iterations, update_error)
+  call jacobi(ua, ub, rhs, h, tol, maxiter, iterations, update_error, final_is_first)
   call system_clock(t1)
 
   duration = real(t1 - t0, dp) / real(clock_rate, dp)
@@ -77,15 +75,25 @@ program poisson
     end do
   end do
 
-  err = abs(u - ue)
-  max_error = maxval(err)
-  l2_error = sqrt(sum((u - ue)**2) * h**2)
+  if (final_is_first) then
+    err = abs(ua - ue)
+    max_error = maxval(err)
+    l2_error = sqrt(sum((ua - ue)**2) * h**2)
+  else
+    err = abs(ub - ue)
+    max_error = maxval(err)
+    l2_error = sqrt(sum((ub - ue)**2) * h**2)
+  end if
 
   write (*, '()')
   write (*, '(a, es15.6)') 'max error = ', max_error
   write (*, '(a, es15.6)') 'L2 error  = ', l2_error / sqrt(real(n, dp))
 
-  call save_plot('poisson_jacobi.png', u, ue, err, n, max_error)
+  if (final_is_first) then
+    call save_plot('poisson_jacobi.png', ua, ue, err, n, max_error)
+  else
+    call save_plot('poisson_jacobi.png', ub, ue, err, n, max_error)
+  end if
   write (*, '(a)') 'saved poisson_jacobi.png'
 
 contains
@@ -102,36 +110,43 @@ contains
     val = 2.0_dp * pi**2 * sin(pi * xx) * sin(pi * yy)
   end function f_rhs
 
-  subroutine jacobi(u, u_new, rhs, h, tol, maxiter, iterations, update_error)
-    real(dp), pointer, contiguous, intent(inout) :: u(:, :), u_new(:, :)
+  subroutine jacobi(u, u_new, rhs, h, tol, maxiter, iterations, update_error, final_is_first)
+    real(dp), allocatable, intent(inout) :: u(:, :), u_new(:, :)
     real(dp), intent(in), contiguous :: rhs(:, :)
     real(dp), intent(in) :: h, tol
     integer, intent(in) :: maxiter
     integer, intent(out) :: iterations
     real(dp), intent(out) :: update_error
+    logical, intent(out) :: final_is_first
 
     integer :: nloc, iter
     real(dp) :: h2
-    logical :: report
-    real(dp), pointer, contiguous :: tmp(:, :)
+    logical :: report, use_first
 
     nloc = size(u, 1)
     h2 = h**2
     update_error = huge(0.0_dp)
     iterations = 0
+    use_first = .true.
 
     do iter = 1, maxiter
       report = (mod(iter, report_interval) == 0) .or. (iter == maxiter)
 
       if (report) then
-        update_error = sweep_track(u, u_new, rhs, h2, nloc)
+        if (use_first) then
+          update_error = sweep_track(u, u_new, rhs, h2, nloc)
+        else
+          update_error = sweep_track(u_new, u, rhs, h2, nloc)
+        end if
       else
-        call sweep_plain(u, u_new, rhs, h2, nloc)
+        if (use_first) then
+          call sweep_plain(u, u_new, rhs, h2, nloc)
+        else
+          call sweep_plain(u_new, u, rhs, h2, nloc)
+        end if
       end if
 
-      tmp => u
-      u => u_new
-      u_new => tmp
+      use_first = .not. use_first
       iterations = iter
 
       if (report) then
@@ -139,12 +154,14 @@ contains
         if (update_error < tol) exit
       end if
     end do
+    final_is_first = use_first
   end subroutine jacobi
 
   ! One Jacobi sweep that also reduces the update width. Only called every
   ! `report_interval` iterations, so the hot sweeps stay reduction-free.
   function sweep_track(u, u_new, rhs, h2, nloc) result(update_error)
-    real(dp), pointer, contiguous, intent(inout) :: u(:, :), u_new(:, :)
+    real(dp), contiguous, intent(in) :: u(:, :)
+    real(dp), contiguous, intent(inout) :: u_new(:, :)
     real(dp), intent(in), contiguous :: rhs(:, :)
     real(dp), intent(in) :: h2
     integer, intent(in) :: nloc
@@ -167,7 +184,8 @@ contains
 
   ! Reduction-free Jacobi sweep for the non-reported iterations.
   subroutine sweep_plain(u, u_new, rhs, h2, nloc)
-    real(dp), pointer, contiguous, intent(inout) :: u(:, :), u_new(:, :)
+    real(dp), contiguous, intent(in) :: u(:, :)
+    real(dp), contiguous, intent(inout) :: u_new(:, :)
     real(dp), intent(in), contiguous :: rhs(:, :)
     real(dp), intent(in) :: h2
     integer, intent(in) :: nloc
