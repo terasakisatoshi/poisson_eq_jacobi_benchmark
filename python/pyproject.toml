@@ -1,0 +1,12 @@
+[project]
+name = "poisson-jacobi"
+version = "0.1.0"
+description = "Numba-accelerated Jacobi solver for the 2-D Dirichlet Poisson equation"
+requires-python = ">=3.11"
+dependencies = [
+    "numba>=0.61",
+    "numpy>=2.0",
+]
+
+[tool.uv]
+package = false

@@ -50,12 +50,14 @@ $$
 | ディレクトリ | 言語 | 実装 |
 |---|---|---|
 | `julia/` | Julia | `LoopVectorization.@turbo` を使う通常の Jacobi 法 |
-| `python/` | Python | uv 管理環境で Numba の `@njit` を使う Jacobi 法 |
+| `python/` | Python | uv 管理環境で Numba の `@njit` を使うシングルスレッド Jacobi 法 |
 | `cxx/` | C++23 | `std::span`、`std::println`、値型 `Grid`、バッファ交換 |
 | `fortran/` | Fortran 2008 | ポインタによるバッファ交換 |
 | `rust/` | Rust | `pulp` による実行時 SIMD dispatch と 2 反復パイプライン |
 
 ## 実行
+
+以下のコマンドはすべて、この README.md があるリポジトリルートで実行してください。
 
 ### Julia
 

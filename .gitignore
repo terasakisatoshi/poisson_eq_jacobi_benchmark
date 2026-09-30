@@ -1,0 +1,16 @@
+# Compiled executables produced by the language examples.
+/cxx/poisson
+/fortran/poisson
+
+# Rust build directory.
+/rust/target/
+
+# Generated plots written by the solvers.
+/**/poisson_jacobi.png
+
+# uv / Python environment and bytecode cache.
+/python/.venv/
+/**/__pycache__/
+
+# Source sandbox used as the copy origin for the language examples.
+/extern/poisson_eq_sandbox/
