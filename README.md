@@ -50,9 +50,10 @@ $$
 | ディレクトリ | 言語 | 実装 |
 |---|---|---|
 | `julia/` | Julia | `LoopVectorization.@turbo` を使う通常の Jacobi 法 |
+| `julia_unsafe/` | Julia | raw pointer、SIMD、時間ブロッキングを使う高速 Jacobi 法 |
 | `python/` | Python | uv 管理環境で Numba の `@njit` を使うシングルスレッド Jacobi 法 |
 | `cxx/` | C++23 | `std::span`、`std::println`、値型 `Grid`、バッファ交換 |
-| `fortran/` | Fortran 2008 | ポインタによるバッファ交換 |
+| `fortran/` | Fortran 2008 | allocatable 配列と選択フラグによるバッファ交換 |
 | `rust/` | Rust | `pulp` による実行時 SIMD dispatch と 2 反復パイプライン |
 
 ## 実行
@@ -80,6 +81,20 @@ julia --project=julia julia/poisson.jl
 ```sh
 uv sync --project python
 uv run --project python python/poisson.py
+```
+
+### Julia unsafe
+
+依存パッケージを初めて使う場合は、先に環境を準備します。
+
+```sh
+julia --project=julia_unsafe -e 'using Pkg; Pkg.instantiate()'
+```
+
+リポジトリルートから実行します。
+
+```sh
+julia --project=julia_unsafe julia_unsafe/poisson.jl
 ```
 
 ### C++
@@ -120,7 +135,7 @@ gfortran -O3 -mcpu=native -mtune=native -std=f2008 -o fortran/poisson fortran/ma
 cargo run --release --manifest-path rust/Cargo.toml
 ```
 
-各プログラムは解の可視化を `poisson_jacobi.png` として生成します。これは生成物なので `.gitignore` により管理対象外です。
+C++、Fortran、Rust のプログラムは解の可視化を `poisson_jacobi.png` として生成します。これは生成物なので `.gitignore` により管理対象外です。Julia 実装はベンチマーク時の描画を行いません。
 
 ## ベンチマーク
 

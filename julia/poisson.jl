@@ -1,5 +1,4 @@
 using Printf
-using Plots
 using LoopVectorization
 
 # ------------------------------------------------------------
@@ -105,52 +104,6 @@ function jacobi!(u, u_new, rhs, h, tol, maxiter)
     return u, iterations, update_error
 end
 
-function save_plot(path, x, y, u, ue, err)
-    p1 = surface(
-        x,
-        y,
-        ue',
-        xlabel="x",
-        ylabel="y",
-        zlabel="u",
-        title="Exact solution",
-        camera=(45, 30)
-    )
-
-    p2 = surface(
-        x,
-        y,
-        u',
-        xlabel="x",
-        ylabel="y",
-        zlabel="u",
-        title="Numerical solution",
-        camera=(45, 30)
-    )
-
-    p3 = heatmap(
-        x,
-        y,
-        err',
-        xlabel="x",
-        ylabel="y",
-        title="Absolute error",
-        colorbar_title="|u - u_exact|"
-    )
-
-    p = plot(
-        p1,
-        p2,
-        p3,
-        layout=(1, 3),
-        size=(1500, 450)
-    )
-
-    display(p)
-    savefig(p, path)
-    return p
-end
-
 function main()
     N = 401
     tol = 1e-10
@@ -196,10 +149,6 @@ function main()
     println()
     @printf("max error = %.6e\n", max_error)
     @printf("L2 error  = %.6e\n", l2_error / sqrt(N))
-
-    out = joinpath(@__DIR__, "poisson_jacobi.png")
-    save_plot(out, x, y, u, ue, err)
-    println("saved ", out)
 
     return nothing
 end

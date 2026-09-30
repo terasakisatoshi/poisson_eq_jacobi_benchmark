@@ -100,6 +100,9 @@ run_benchmark() {
 run_benchmark "julia" "Julia" "$ROOT_DIR/julia" \
     julia --project=. poisson.jl
 
+run_benchmark "julia_unsafe" "Julia (unsafe)" "$ROOT_DIR/julia_unsafe" \
+    julia --project=. poisson.jl
+
 run_benchmark "python" "Python + Numba" "$ROOT_DIR/python" \
     uv run --project=. poisson.py
 
